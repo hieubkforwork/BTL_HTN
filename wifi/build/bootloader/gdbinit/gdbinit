@@ -1,0 +1,2 @@
+source D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/gdbinit/symbols
+source D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/gdbinit/connect

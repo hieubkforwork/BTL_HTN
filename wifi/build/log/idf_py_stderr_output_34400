@@ -1,0 +1,14 @@
+[0;33m--- Warning: GDB cannot open serial ports accessed as COMx[0m
+[0;33m--- Using \\.\COM4 instead...[0m
+[0;33m--- esp-idf-monitor 1.7.0 on \\.\COM4 115200[0m
+[0;33m--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H[0m
+[0m--- 0x40080400: [0;33m_init[0m[0m at [0;32m??[0m[0m:[1;31m?[0m
+[0m--- 0x40081b69: [0;33mpanic_abort[0m[0m at [0;32mD:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/esp_system/panic.c[0m[0m:[1;31m469[0m
+[0m--- 0x400897ed: [0;33mesp_system_abort[0m[0m at [0;32mD:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/esp_system/port/esp_system_chip.c[0m[0m:[1;31m87[0m
+[0m--- 0x40091629: [0;33m__assert_func[0m[0m at [0;32mD:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/newlib/assert.c[0m[0m:[1;31m80[0m
+[0m--- 0x400e0ad1: [0;33mesp_netif_create_default_wifi_ap[0m[0m at [0;32mD:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/esp_wifi/src/wifi_default.c[0m[0m:[1;31m408[0m
+[0m--- 0x400d8c81: [0;33mstart_config_ap[0m[0m at [0;32mD:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/common/wifi/wifi.c[0m[0m:[1;31m88[0m
+[0m--- 0x400d8dd7: [0;33mwifi_reconnect_task[0m[0m at [0;32mD:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/common/wifi/wifi.c[0m[0m:[1;31m78[0m
+[0m--- 0x4008a291: [0;33mvPortTaskWrapper[0m[0m at [0;32mD:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c[0m[0m:[1;31m139[0m
+[0m--- 0x40080400: [0;33m_init[0m[0m at [0;32m??[0m[0m:[1;31m?[0m
+[0m

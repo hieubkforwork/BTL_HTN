@@ -1,0 +1,8 @@
+{
+    "idf.pythonInstallPath": "D:\\Embedded\\ESP32\\Espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "files.associations": {
+        "stdio.h": "c",
+        "compare": "c",
+        "stdlib.h": "c"
+    }
+}
