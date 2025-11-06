@@ -18,8 +18,8 @@ end
 
 # Load bootloader symbols
 set confirm off
-    add-symbol-file D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/bootloader.elf
+    add-symbol-file D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader/bootloader.elf
 set confirm on
 
 # Load application symbols
-file D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/wifi.elf
+file D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/wifi.elf

@@ -39,11 +39,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/esp-idf/esp_hw_support/port/esp32/cmake_install.cmake")
+  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader/esp-idf/esp_hw_support/port/esp32/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
+  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
 endif()
 

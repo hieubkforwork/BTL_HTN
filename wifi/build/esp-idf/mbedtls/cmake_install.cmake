@@ -2,7 +2,7 @@
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/Robot_Car")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/wifi")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -39,6 +39,6 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/esp-idf/mbedtls/mbedtls/cmake_install.cmake")
+  include("D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/esp-idf/mbedtls/mbedtls/cmake_install.cmake")
 endif()
 

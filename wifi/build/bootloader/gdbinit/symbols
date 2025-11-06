@@ -22,4 +22,4 @@ set confirm off
 set confirm on
 
 # Load application symbols
-file D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader/bootloader.elf
+file D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader/bootloader.elf

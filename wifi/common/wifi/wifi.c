@@ -6,7 +6,7 @@ bool ap_mode_active = false;
 
 void wifi_reconnect_task(void *pvParameters)
 {
-    int retry = 0;
+    uint8_t retry = 0;
     while (retry < MAX_RETRY && !sta_connected)
     {
         ESP_LOGW(TAG, "Reconnecting to Wi-Fi... (%d)", retry + 1);
@@ -15,7 +15,7 @@ void wifi_reconnect_task(void *pvParameters)
         if (err == ESP_ERR_WIFI_CONN)
             ESP_LOGW(TAG, "Already connecting, skip...");
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         ++retry;
     }
 
@@ -41,7 +41,16 @@ void wifi_reconnect_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-
+/**
+ * @brief Start Wi-Fi Access Point (AP) mode for configuration.
+ *
+ * This function initializes and starts the ESP32 in Access Point mode
+ * so that users can connect to it for configuration purposes.
+ * If the AP is already active, the function will return.
+ *
+ * @param None
+ * @return None
+ */
 void start_config_ap(void)
 {
     if (ap_mode_active)
@@ -65,14 +74,13 @@ void start_config_ap(void)
         },
     };
 
-    if (strlen(ESP32_WIFI_PASSWORD) == 0)
-        ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    if (strlen(ESP32_WIFI_PASSWORD) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
 
     esp_wifi_set_mode(WIFI_MODE_AP);
     esp_wifi_set_config(WIFI_IF_AP, &ap_config);
     esp_wifi_start();
 
-    ESP_LOGI(TAG, "AP started: SSID=ESP32_Config, PASS=12345678");
+    ESP_LOGI(TAG, "AP started: SSID=%s, PASS=%s", ESP32_WIFI_SSID, ESP32_WIFI_PASSWORD);
     start_webserver();
 }
 

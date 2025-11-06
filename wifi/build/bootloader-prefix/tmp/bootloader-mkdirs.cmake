@@ -10,18 +10,18 @@ if(NOT EXISTS "D:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/
   file(MAKE_DIRECTORY "D:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2/components/bootloader/subproject")
 endif()
 file(MAKE_DIRECTORY
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader"
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix"
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/tmp"
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/src/bootloader-stamp"
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/src"
-  "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/src/bootloader-stamp"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/tmp"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/src/bootloader-stamp"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/src"
+  "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()

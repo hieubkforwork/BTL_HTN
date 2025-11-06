@@ -1,8 +1,8 @@
-# Install script for directory: D:/Embedded/ESP32/LAB-ESP32/Assignment/Robot_Car/common/web_config
+# Install script for directory: D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/common/web_config
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/Robot_Car")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/wifi")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

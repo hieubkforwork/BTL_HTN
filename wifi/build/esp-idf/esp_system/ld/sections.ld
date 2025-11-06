@@ -1,6 +1,6 @@
 /* Automatically generated file; DO NOT EDIT */
 /* Espressif IoT Development Framework Linker Script */
-/* Generated from: D:\Embedded\ESP32\LAB-ESP32\Assignment\Robot_Car\build\esp-idf\esp_system\ld\sections.ld.in */
+/* Generated from: D:\Embedded\ESP32\LAB-ESP32\Assignment\BTL_HTN\wifi\build\esp-idf\esp_system\ld\sections.ld.in */
 
 /*
 
