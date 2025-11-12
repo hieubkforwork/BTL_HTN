@@ -1,26 +1,66 @@
-#include "driver/ledc.h"
-#include "driver/gpio.h"
-#include "esp_err.h"
-#include "esp_log.h"
+#include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "driver/ledc.h"
+#include "esp_log.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
+#include "cJSON.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include "esp_netif.h"
+#include "driver/adc.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
-#define TAG "DRV8833"
+
+
+static const char *TAG = "MOTOR_FIREBASE";
+
+// --- 🧩 2️⃣ Khai báo Firebase thông tin ---
+// ********* THAY THẾ BẰNG THÔNG TIN CỦA BẠN *********
+#define FIREBASE_HOST "esp32-fire-ae12a-default-rtdb.asia-southeast1.firebasedatabase.app" // Ví dụ: my-esp32-project-default-rtdb.firebaseio.com
+#define FIREBASE_SECRET "RkdFX4MJsPFQISXrvDooAaWenjKHxnq0QNxWU2hR"                         // Lấy từ Project Settings -> Service Accounts -> Database secrets
+// *************************************************
+
+// ********* THAY THẾ BẰNG THÔNG TIN WIFI CỦA BẠN *********
+#define WIFI_SSID "minhthao_2.4g"
+#define WIFI_PASSWORD "14012004"
+// ********************************************************
+
+// ********* CẤU HÌNH LỌC VÀ HỆ SỐ CHIA ÁP *********
+#define VOLTAGE_DIVIDER_RATIO (3.14176f)
+#define NUM_SAMPLES 10
+static int Vout_samples[NUM_SAMPLES] = {0};
+static int sample_index = 0;
+
+// KHAI BÁO BIẾN ĐẾM TĨNH để nó giữ giá trị giữa các lần lặp while(1)
+static int read_count = 0;
+static char ip_str[16];
+static int adcOld = 0;
+
+#define WIFI_CONNECTED_BIT BIT0
+static EventGroupHandle_t wifi_event_group;
+
 
 // ==== GPIO định nghĩa ====
 // Mạch DRV8833 #1
-#define AIN1_GPIO 18
-#define AIN2_GPIO 19
+#define AIN1_GPIO 33
+#define AIN2_GPIO 32
 #define BIN1_GPIO 25
 #define BIN2_GPIO 26
 #define STBY1_GPIO 27
 
 // Mạch DRV8833 #2
-#define CIN1_GPIO 32
-#define CIN2_GPIO 33
-#define DIN1_GPIO 14
-#define DIN2_GPIO 15
-#define STBY2_GPIO 4
+#define CIN1_GPIO 18
+#define CIN2_GPIO 19
+#define DIN1_GPIO 17
+#define DIN2_GPIO 16
+#define STBY2_GPIO 5
 
 // ==== Cấu hình PWM ====
 #define LEDC_MODE LEDC_LOW_SPEED_MODE
@@ -144,6 +184,7 @@ static void motor_control(ledc_channel_t ch1, ledc_channel_t ch2, uint32_t speed
 {
     if (forward)
     {
+        // Ch1: Duty = speed, Ch2: Duty = 0
         ledc_set_duty(LEDC_MODE, ch1, speed);
         ledc_update_duty(LEDC_MODE, ch1);
         ledc_set_duty(LEDC_MODE, ch2, 0);
@@ -151,6 +192,7 @@ static void motor_control(ledc_channel_t ch1, ledc_channel_t ch2, uint32_t speed
     }
     else
     {
+        // Ch1: Duty = 0, Ch2: Duty = speed
         ledc_set_duty(LEDC_MODE, ch1, 0);
         ledc_update_duty(LEDC_MODE, ch1);
         ledc_set_duty(LEDC_MODE, ch2, speed);
@@ -158,43 +200,400 @@ static void motor_control(ledc_channel_t ch1, ledc_channel_t ch2, uint32_t speed
     }
 }
 
-// ==== Tiện ích ====
-#define motorA_forward(s) motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, s, true)
-#define motorA_backward(s) motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, s, false)
-#define motorB_forward(s) motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, s, true)
-#define motorB_backward(s) motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, s, false)
-#define motorC_forward(s) motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, s, true)
-#define motorC_backward(s) motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, s, false)
-#define motorD_forward(s) motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, s, true)
-#define motorD_backward(s) motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, s, false)
-
-// ==== Ứng dụng chính ====
-void app_main(void)
+// ==== HÀM DỪNG ĐỘNG CƠ MỚI (TƯỜNG MINH) ====
+static void motor_stop(ledc_channel_t ch1, ledc_channel_t ch2)
 {
-    drv8833_init();
-    uint32_t speed = 512; // ~50% duty
+    // Đặt cả hai kênh về 0% duty cycle (Short Brake)
+    ledc_set_duty(LEDC_MODE, ch1, 0);
+    ledc_update_duty(LEDC_MODE, ch1);
+    ledc_set_duty(LEDC_MODE, ch2, 0);
+    ledc_update_duty(LEDC_MODE, ch2);
+}
+
+// --- 🔌 5️⃣ Khởi tạo WiFi STA ---
+static void event_handler(void *arg, esp_event_base_t event_base,
+                          int32_t event_id, void *event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    {
+        esp_wifi_connect();
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
+    {
+        ESP_LOGI(TAG, "Reconnecting to Wi-Fi...");
+        esp_wifi_connect();
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+        sprintf(ip_str, IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+
+        // 🔹 Báo hiệu WiFi đã sẵn sàng
+        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+}
+
+
+static void wifi_init(void)
+{
+    wifi_event_group = xEventGroupCreate();
+    // Khởi tạo NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    // Khởi tạo TCP/IP stack và Default Event Loop
+    esp_netif_init();
+    esp_event_loop_create_default();
+    esp_netif_create_default_wifi_sta();
+
+    // Đăng ký Event Handler
+    esp_event_handler_instance_t instance_any_id;
+    esp_event_handler_instance_t instance_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &event_handler,
+                                                        NULL,
+                                                        &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &event_handler,
+                                                        NULL,
+                                                        &instance_got_ip));
+
+    // Cấu hình WiFi
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASSWORD,
+            .scan_method = WIFI_FAST_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
+            .threshold.rssi = -127,
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+        },
+    };
+
+    // Bắt đầu kết nối
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG, "WiFi initialization finished.");
+}
+
+static void send_info_to_firebase(void)
+{
+    char url[256];
+    snprintf(url, sizeof(url), "https://%s/esp32_info.json?auth=%s", FIREBASE_HOST, FIREBASE_SECRET);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "ip_esp32", ip_str);
+    cJSON_AddStringToObject(root, "status", "connected");
+    char *json = cJSON_PrintUnformatted(root);
+
+    esp_http_client_config_t cfg = {.url = url, .method = HTTP_METHOD_PUT, .crt_bundle_attach = esp_crt_bundle_attach};
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_post_field(client, json, strlen(json));
+    esp_http_client_perform(client);
+    esp_http_client_cleanup(client);
+
+    cJSON_Delete(root);
+    free(json);
+    ESP_LOGI(TAG, "Device info sent to Firebase");
+}
+
+// --- 🧩 3️⃣ Hàm xử lý điều khiển từ Firebase ---
+static void firebase_motor_task(void *pvParameters)
+{
+    vTaskDelay(pdMS_TO_TICKS(5000)); // Chờ WiFi kết nối
+
+    char url[256];
+    snprintf(url, sizeof(url),
+             "https://%s/esp32_motor.json?auth=%s",
+             FIREBASE_HOST, FIREBASE_SECRET);
+
+    ESP_LOGI(TAG, "Firebase URL: %s", url);
 
     while (1)
     {
-        ESP_LOGI(TAG, "All motors forward...");
-        motorA_forward(speed);
-        motorB_forward(speed);
-        motorC_forward(speed);
-        motorD_forward(speed);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_http_client_config_t cfg = {
+            .url = url,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+            .timeout_ms = 10000,
+        };
 
-        ESP_LOGI(TAG, "All motors backward...");
-        motorA_backward(speed);
-        motorB_backward(speed);
-        motorC_backward(speed);
-        motorD_backward(speed);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_http_client_handle_t client = esp_http_client_init(&cfg);
+        esp_err_t err = esp_http_client_open(client, 0);
 
-        ESP_LOGI(TAG, "Stop...");
-        motorA_forward(0);
-        motorB_forward(0);
-        motorC_forward(0);
-        motorD_forward(0);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (err == ESP_OK)
+        {
+            int header_status = esp_http_client_fetch_headers(client);
+            if (header_status >= 0)
+            {
+                char buffer[512];
+                int len = esp_http_client_read_response(client, buffer, sizeof(buffer) - 1);
+
+                if (len > 0)
+                {
+                    buffer[len] = '\0';
+                    cJSON *root = cJSON_Parse(buffer);
+                    if (root)
+                    {
+                        cJSON *dir = cJSON_GetObjectItem(root, "direction");
+                        cJSON *spd = cJSON_GetObjectItem(root, "speed");
+
+                        // ✅ speed là phần trăm (0–100)
+                        uint32_t speed_percent = (cJSON_IsNumber(spd)) ? spd->valueint : 0;
+                        if (speed_percent > 100)
+                            speed_percent = 100;
+
+                        // Chuyển từ % sang giá trị PWM (0–1023)
+                        uint32_t pwm_value = (speed_percent * 1023) / 100;
+                        int pwm_D = (int)(pwm_value * 1.328125f);
+                        if (pwm_D > 1023) pwm_D = 1023;
+                        if (pwm_D < 0) pwm_D = 0;
+
+                        if (dir && cJSON_IsString(dir))
+                        {
+                            const char *d = dir->valuestring;
+                            ESP_LOGI(TAG, "Direction: %s, Speed: %d%% (PWM=%d)",
+                                     d, speed_percent, pwm_value);
+
+                            // Dừng trước khi đổi hướng
+                            motor_stop(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2);
+                            motor_stop(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2);
+                            motor_stop(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2);
+                            motor_stop(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2);
+
+                            // Logic điều khiển xe omni (4 bánh)
+                            if (strcmp(d, "B") == 0)
+                            { // 
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
+                            }
+                            else if (strcmp(d, "F") == 0)
+                            { // 
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
+                            }
+                            else if (strcmp(d, "L") == 0)
+                            { // 
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
+                            }
+                            else if (strcmp(d, "R") == 0)
+                            { // 
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
+                            }
+                            // else if (strcmp(d, "BL") == 0)
+                            // { //
+                            //     motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
+                            //     motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, 0, true);
+                            //     motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_C2, pwm_D, true);
+                            //     motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_D2, 0, true);
+                            // }
+                            // else if (strcmp(d, "BR") == 0)
+                            // { // 
+                            //     motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, 0, true);
+                            //     motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
+                            //     motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_C2, 0, true);
+                            //     motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_D2, pwm_value, true);
+                            // }
+                            else if (strcmp(d, "FL") == 0)
+                            { // Lùi phải
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
+                            }
+                            else if (strcmp(d, "FR") == 0)
+                            { // Lùi trái
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
+                            }
+                            else
+                            { // Stop hoặc sai dữ liệu
+                                motor_stop(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2);
+                                motor_stop(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2);
+                                motor_stop(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2);
+                                motor_stop(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2);
+                                ESP_LOGI(TAG, "Stop");
+                            }
+                        }
+                        else
+                        {
+                            ESP_LOGW(TAG, "Invalid direction");
+                        }
+
+                        cJSON_Delete(root);
+                    }
+                }
+            }
+        }
+
+        esp_http_client_cleanup(client);
+        vTaskDelay(pdMS_TO_TICKS(500)); // 0.5s đọc lại Firebase
     }
+}
+
+
+// --- ADC ---
+void adc_task(void *pvParameters)
+{
+    // 1️⃣ Khởi tạo ADC
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_init_cfg_t init_config = {
+        .unit_id = ADC_UNIT_1,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc1_handle));
+
+    adc_oneshot_chan_cfg_t config = {
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .atten = ADC_ATTEN_DB_12,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_6, &config));
+    // ADC_CHANNEL_6 tương ứng GPIO34
+
+    // 2️⃣ Hiệu chuẩn ADC
+    adc_cali_handle_t cali_handle = NULL;
+    bool do_calibration = false;
+
+    adc_cali_line_fitting_config_t cali_config = {
+        .unit_id = ADC_UNIT_1,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+
+    if (adc_cali_create_scheme_line_fitting(&cali_config, &cali_handle) == ESP_OK)
+    {
+        do_calibration = true;
+        ESP_LOGI(TAG, "ADC calibration: Line Fitting enabled");
+    }
+    else
+    {
+        ESP_LOGW(TAG, "ADC calibration: Line Fitting not supported");
+    }
+
+    // 3️⃣ Vòng lặp đọc ADC
+    int raw = 0;
+    int Vout_mV = 0;
+    int Vin_mV = 0;
+    int Vout_avg = 0;
+
+    while (1)
+    {
+        char url[256];
+        snprintf(url, sizeof(url), "https://%s/esp32_adc.json?auth=%s", FIREBASE_HOST, FIREBASE_SECRET);
+
+        ESP_LOGI(TAG, "Device info sent to Firebase");
+        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL_6, &raw));
+
+        if (do_calibration)
+        {
+            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(cali_handle, raw, &Vout_mV));
+
+            // Moving Average Filter
+            Vout_samples[sample_index] = Vout_mV;
+            sample_index = (sample_index + 1) % NUM_SAMPLES;
+
+            if (read_count < NUM_SAMPLES)
+            {
+                read_count++;
+                ESP_LOGI(TAG, "Đang khởi động: lấy mẫu %d/%d...", read_count, NUM_SAMPLES);
+            }
+            else
+            {
+                long sum = 0;
+                for (int i = 0; i < NUM_SAMPLES; i++)
+                {
+                    sum += Vout_samples[i];
+                }
+                Vout_avg = (int)(sum / NUM_SAMPLES);
+                Vin_mV = (int)((float)Vout_avg * VOLTAGE_DIVIDER_RATIO);
+
+                ESP_LOGI(TAG, "Raw: %d | Vout_Avg: %d mV | Vin: %d mV (%.2f V)",
+                         raw, Vout_avg, Vin_mV, Vin_mV / 1000.0f);
+                if(Vin_mV != adcOld){  
+                adcOld = Vin_mV; 
+                cJSON *root = cJSON_CreateObject();
+                cJSON_AddNumberToObject(root, "Volt", Vin_mV);
+                char *json = cJSON_PrintUnformatted(root);
+
+                esp_http_client_config_t cfg = {.url = url, .method = HTTP_METHOD_PUT, .crt_bundle_attach = esp_crt_bundle_attach};
+                esp_http_client_handle_t client = esp_http_client_init(&cfg);
+                esp_http_client_set_header(client, "Content-Type", "application/json");
+                esp_http_client_set_post_field(client, json, strlen(json));
+                esp_http_client_perform(client);
+                esp_http_client_cleanup(client);
+
+                cJSON_Delete(root);
+                free(json);
+            }
+            }
+        }
+        else
+        {
+            ESP_LOGI(TAG, "Raw: %d (no calibration)", raw);
+        }
+
+        // Đọc mỗi giây
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+
+    // 4️⃣ Giải phóng tài nguyên (nếu thoát)
+    if (do_calibration)
+    {
+        ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(cali_handle));
+    }
+    ESP_ERROR_CHECK(adc_oneshot_del_unit(adc1_handle));
+
+    vTaskDelete(NULL); // Kết thúc task
+}
+
+// --- Hàm app_main() chính ---
+void app_main(void)
+{
+    ESP_LOGI(TAG, "Starting DRV8833 Firebase Control...");
+
+    wifi_init();
+
+    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+                                           WIFI_CONNECTED_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           pdMS_TO_TICKS(10000)); // timeout 10s
+
+    if (bits & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG, "WiFi connected, now sending info...");
+        send_info_to_firebase();
+    }
+    else
+    {
+        ESP_LOGW(TAG, "WiFi connection timeout, skipping send_info_to_firebase()");
+    }
+
+    drv8833_init();
+
+    xTaskCreate(firebase_motor_task, "firebase_task", 8192, NULL, 5, NULL);
+    xTaskCreate(adc_task, "adc_task", 4096, NULL, 5, NULL);
 }

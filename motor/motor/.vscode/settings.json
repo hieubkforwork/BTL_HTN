@@ -15,5 +15,10 @@
     "--background-index",
     "--query-driver=c:\\Users\\ACER\\.espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20241119\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
     "--compile-commands-dir=${workspaceFolder}\\build"
-  ]
+  ],
+  "files.associations": {
+    "*.dbclient-js": "javascript",
+    "adc_cali_scheme.h": "c",
+    "freertos.h": "c"
+  }
 }
