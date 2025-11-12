@@ -21,8 +21,7 @@
 
 static const char *TAG = "MOTOR_FIREBASE";
 
-// --- 🧩 2️⃣ Khai báo Firebase thông tin ---
-// ********* THAY THẾ BẰNG THÔNG TIN CỦA BẠN *********
+// --- Khai báo Firebase thông tin ---
 #define FIREBASE_HOST "esp32-fire-ae12a-default-rtdb.asia-southeast1.firebasedatabase.app" // Ví dụ: my-esp32-project-default-rtdb.firebaseio.com
 #define FIREBASE_SECRET "RkdFX4MJsPFQISXrvDooAaWenjKHxnq0QNxWU2hR"                         // Lấy từ Project Settings -> Service Accounts -> Database secrets
 // *************************************************
@@ -310,7 +309,7 @@ static void send_info_to_firebase(void)
     ESP_LOGI(TAG, "Device info sent to Firebase");
 }
 
-// --- 🧩 3️⃣ Hàm xử lý điều khiển từ Firebase ---
+// --- Hàm xử lý điều khiển động cơ từ Firebase ---
 static void firebase_motor_task(void *pvParameters)
 {
     vTaskDelay(pdMS_TO_TICKS(5000)); // Chờ WiFi kết nối
@@ -456,10 +455,10 @@ static void firebase_motor_task(void *pvParameters)
 }
 
 
-// --- ADC ---
+// --- Hàm xử lý ADC lên Firebase ---
 void adc_task(void *pvParameters)
 {
-    // 1️⃣ Khởi tạo ADC
+    // Khởi tạo ADC
     adc_oneshot_unit_handle_t adc1_handle;
     adc_oneshot_unit_init_cfg_t init_config = {
         .unit_id = ADC_UNIT_1,
@@ -473,7 +472,7 @@ void adc_task(void *pvParameters)
     ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_6, &config));
     // ADC_CHANNEL_6 tương ứng GPIO34
 
-    // 2️⃣ Hiệu chuẩn ADC
+    // Hiệu chuẩn ADC
     adc_cali_handle_t cali_handle = NULL;
     bool do_calibration = false;
 
@@ -493,7 +492,7 @@ void adc_task(void *pvParameters)
         ESP_LOGW(TAG, "ADC calibration: Line Fitting not supported");
     }
 
-    // 3️⃣ Vòng lặp đọc ADC
+    // Vòng lặp đọc ADC
     int raw = 0;
     int Vout_mV = 0;
     int Vin_mV = 0;
@@ -559,7 +558,7 @@ void adc_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 
-    // 4️⃣ Giải phóng tài nguyên (nếu thoát)
+    // Giải phóng tài nguyên (nếu thoát)
     if (do_calibration)
     {
         ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(cali_handle));
