@@ -4,9 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>       
-#include "esp_err.h"       
-#include "esp_netif.h"     
-#include "esp_wifi.h"      
+#include "esp_err.h"             
 #include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"

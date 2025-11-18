@@ -7,33 +7,32 @@ bool ap_mode_active = false;
 void wifi_reconnect_task(void *pvParameters)
 {
     uint8_t retry = 0;
+
     while (retry < MAX_RETRY && !sta_connected)
     {
         ESP_LOGW(TAG, "Reconnecting to Wi-Fi... (%d)", retry + 1);
         esp_err_t err = esp_wifi_connect();
 
         if (err == ESP_ERR_WIFI_CONN)
+        {
             ESP_LOGW(TAG, "Already connecting, skip...");
+        }
 
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        ++retry;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        retry++;
     }
 
     if (!sta_connected)
     {
-        ESP_LOGE(TAG, "Failed to reconnect after %d tries. Switching to AP mode...", MAX_RETRY);
-
-        wifi_mode_t mode;
-        esp_wifi_get_mode(&mode);
-
-        if (mode != WIFI_MODE_AP)
+        ESP_LOGE(TAG, "Failed to reconnect after %d tries.", MAX_RETRY);
+        if (!ap_mode_active)
         {
-            esp_wifi_stop();
+            ESP_LOGW(TAG, "Starting AP mode for configuration...");
             start_config_ap();
         }
         else
         {
-            ESP_LOGW(TAG, "Already in AP mode, skip switching.");
+            ESP_LOGW(TAG, "AP mode already active, skip starting AP.");
         }
     }
 
@@ -54,31 +53,22 @@ void wifi_reconnect_task(void *pvParameters)
 void start_config_ap(void)
 {
     if (ap_mode_active)
-    {
-        ESP_LOGW(TAG, "AP already running, skip re-init.");
         return;
-    }
 
     ap_mode_active = true;
-
-    ESP_LOGW(TAG, "Starting AP mode for configuration...");
-    esp_netif_create_default_wifi_ap();
 
     wifi_config_t ap_config = {
         .ap = {
             .ssid = ESP32_WIFI_SSID,
             .ssid_len = strlen(ESP32_WIFI_SSID),
             .password = ESP32_WIFI_PASSWORD,
-            .max_connection = 2,
-            .authmode = WIFI_AUTH_WPA_WPA2_PSK,
-        },
+            .max_connection = 4,
+            .authmode = strlen(ESP32_WIFI_PASSWORD) ? WIFI_AUTH_WPA_WPA2_PSK : WIFI_AUTH_OPEN
+        }
     };
 
-    if (strlen(ESP32_WIFI_PASSWORD) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
-
-    esp_wifi_set_mode(WIFI_MODE_AP);
-    esp_wifi_set_config(WIFI_IF_AP, &ap_config);
-    esp_wifi_start();
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
 
     ESP_LOGI(TAG, "AP started: SSID=%s, PASS=%s", ESP32_WIFI_SSID, ESP32_WIFI_PASSWORD);
     start_webserver();
@@ -176,17 +166,23 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+        current_ip = event->ip_info.ip;
+        start_webserver();
     }
 }
 
 
-void wifi_init_sta_or_ap(void){
+void wifi_init_sta_or_ap(void)
+{
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
     esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_ap();
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
+
     nvs_handle_t nvs;
     size_t len;
     nvs_open("wifi", NVS_READWRITE, &nvs);
@@ -196,34 +192,23 @@ void wifi_init_sta_or_ap(void){
     if (nvs_get_str(nvs, "pass", wifi_pass, &len) != ESP_OK) strcpy(wifi_pass, "");
     nvs_close(nvs);
 
+    start_config_ap();
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
     if (strlen(wifi_ssid) > 0)
     {
         ESP_LOGI(TAG, "Connecting to saved WiFi: %s", wifi_ssid);
         wifi_config_t sta_config = {0};
         strcpy((char *)sta_config.sta.ssid, wifi_ssid);
         strcpy((char *)sta_config.sta.password, wifi_pass);
-        esp_wifi_set_mode(WIFI_MODE_STA);
-        esp_wifi_set_config(WIFI_IF_STA, &sta_config);
-        esp_wifi_start();
-
-        
-        bool connected = false;
-        for (int i = 0; i < 20; i++) {
-            if (sta_connected) { 
-                connected = true;
-                break;
-            }
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
-
-        if (!connected) {
-            ESP_LOGW(TAG, "Cannot connect to saved WiFi, starting AP mode...");
-            start_config_ap();
-        }
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
+        // ESP_ERROR_CHECK(esp_wifi_connect());
     }
     else
     {
-        start_config_ap();
+        ESP_LOGW(TAG, "No saved WiFi, running AP only");
     }
 }
 
