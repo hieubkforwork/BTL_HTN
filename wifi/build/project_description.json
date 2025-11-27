@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "wifi",
-    "project_version":    "f7cbc2c-dirty",
+    "project_version":    "8fd29b1-dirty",
     "project_path":       "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi",
     "idf_path":           "D:/Embedded/ESP32/Espressif/frameworks/esp-idf-v5.4.2",
     "build_dir":          "D:/Embedded/ESP32/LAB-ESP32/Assignment/BTL_HTN/wifi/build",

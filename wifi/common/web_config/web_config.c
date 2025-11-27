@@ -103,7 +103,21 @@ esp_err_t save_handler(httpd_req_t *req) {
     // esp_wifi_stop();
     // wifi_init_sta_or_ap();
     vTaskDelay(2000 / portTICK_PERIOD_MS);
-    esp_restart();
+    // esp_restart();
+    if (strlen(wifi_ssid) > 0)
+    {
+        // ESP_LOGI(TAG, "Connecting to saved WiFi: %s", wifi_ssid);
+        wifi_config_t sta_config = {0};
+        strcpy((char *)sta_config.sta.ssid, wifi_ssid);
+        strcpy((char *)sta_config.sta.password, wifi_pass);
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
+        // printf("HelOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO\n");
+        // ESP_ERROR_CHECK(esp_wifi_connect());
+    }
+    // else
+    // {
+    //     ESP_LOGW(TAG, "No saved WiFi, running AP only");
+    // }
 
     return ESP_OK;
 }

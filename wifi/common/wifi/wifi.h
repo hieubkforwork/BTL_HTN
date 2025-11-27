@@ -14,7 +14,7 @@
 #include "web_config.h"   
 
 #define TAG  "WIFI_CONFIG"
-#define ESP32_WIFI_SSID "ESP32_Config"
+#define ESP32_WIFI_SSID "ESP32_Config_Car"
 #define ESP32_WIFI_PASSWORD "12345678"
 #define MAX_RETRY 10 //retry when disconnect
 
