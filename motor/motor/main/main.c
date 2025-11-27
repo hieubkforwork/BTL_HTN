@@ -22,7 +22,7 @@ static const char *TAG = "MOTOR_FIREBASE";
 // --- Khai báo Firebase thông tin ---
 #define FIREBASE_HOST "esp32-fire-ae12a-default-rtdb.asia-southeast1.firebasedatabase.app" // Ví dụ: my-esp32-project-default-rtdb.firebaseio.com
 #define FIREBASE_SECRET "RkdFX4MJsPFQISXrvDooAaWenjKHxnq0QNxWU2hR"                         // Lấy từ Project Settings -> Service Accounts -> Database secrets
-// *************************************************
+// ************************************************* 
 
 // ********* THAY THẾ BẰNG THÔNG TIN WIFI CỦA BẠN *********
 #define WIFI_SSID "ACLAB"
