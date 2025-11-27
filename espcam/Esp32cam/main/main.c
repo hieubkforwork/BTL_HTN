@@ -16,8 +16,8 @@
 #include "driver/ledc.h"
 
 // ==== WIFI & FIREBASE CONFIG ====
-#define WIFI_SSID       "minhthao_2.4g"
-#define WIFI_PASS       "14012004"
+#define WIFI_SSID       "POCOF3"
+#define WIFI_PASS       "duy161124"
 #define FIREBASE_HOST   "esp32-fire-ae12a-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define FIREBASE_SECRET "RkdFX4MJsPFQISXrvDooAaWenjKHxnq0QNxWU2hR"
 

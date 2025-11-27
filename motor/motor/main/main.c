@@ -17,8 +17,6 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 
-
-
 static const char *TAG = "MOTOR_FIREBASE";
 
 // --- Khai báo Firebase thông tin ---
@@ -27,8 +25,8 @@ static const char *TAG = "MOTOR_FIREBASE";
 // *************************************************
 
 // ********* THAY THẾ BẰNG THÔNG TIN WIFI CỦA BẠN *********
-#define WIFI_SSID "minhthao_2.4g"
-#define WIFI_PASSWORD "14012004"
+#define WIFI_SSID "ACLAB"
+#define WIFI_PASSWORD "ACLAB2023"
 // ********************************************************
 
 // ********* CẤU HÌNH LỌC VÀ HỆ SỐ CHIA ÁP *********
@@ -44,7 +42,6 @@ static int adcOld = 0;
 
 #define WIFI_CONNECTED_BIT BIT0
 static EventGroupHandle_t wifi_event_group;
-
 
 // ==== GPIO định nghĩa ====
 // Mạch DRV8833 #1
@@ -233,7 +230,6 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-
 static void wifi_init(void)
 {
     wifi_event_group = xEventGroupCreate();
@@ -354,11 +350,28 @@ static void firebase_motor_task(void *pvParameters)
                         if (speed_percent > 100)
                             speed_percent = 100;
 
-                        // Chuyển từ % sang giá trị PWM (0–1023)
                         uint32_t pwm_value = (speed_percent * 1023) / 100;
-                        int pwm_D = (int)(pwm_value * 1.328125f);
-                        if (pwm_D > 1023) pwm_D = 1023;
-                        if (pwm_D < 0) pwm_D = 0;
+
+                        // Hệ số đã tính từ bảng đo
+                        float A_rate = 1.0f;
+                        // float B_rate = 1.02f;
+                        // float C_rate = 1.02f;
+                        // float D_rate = 0.95f;
+                        float B_rate = 0.94f;
+                        float C_rate = 0.94f;
+                        float D_rate = 1.2f;
+
+                        // Tính PWM từng bánh
+                        uint32_t pwm_A_tmp = (uint32_t)(pwm_value * A_rate);
+                        uint32_t pwm_B_tmp = (uint32_t)(pwm_value * B_rate);
+                        uint32_t pwm_C_tmp = (uint32_t)(pwm_value * C_rate);
+                        uint32_t pwm_D_tmp = (uint32_t)(pwm_value * D_rate);
+
+                        // Giới hạn 0–1023
+                        uint32_t pwm_A = (pwm_A_tmp > 1023) ? 1023 : pwm_A_tmp;
+                        uint32_t pwm_B = (pwm_B_tmp > 1023) ? 1023 : pwm_B_tmp;
+                        uint32_t pwm_C = (pwm_C_tmp > 1023) ? 1023 : pwm_C_tmp;
+                        uint32_t pwm_D = (pwm_D_tmp > 1023) ? 1023 : pwm_D_tmp;
 
                         if (dir && cJSON_IsString(dir))
                         {
@@ -374,31 +387,31 @@ static void firebase_motor_task(void *pvParameters)
 
                             // Logic điều khiển xe omni (4 bánh)
                             if (strcmp(d, "B") == 0)
-                            { // 
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                            { //
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, true);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
                             }
                             else if (strcmp(d, "F") == 0)
-                            { // 
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                            { //
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, false);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
                             }
-                            else if (strcmp(d, "L") == 0)
-                            { // 
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                            else if (strcmp(d, "R") == 0)
+                            { //
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, false);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
                             }
-                            else if (strcmp(d, "R") == 0)
-                            { // 
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                            else if (strcmp(d, "L") == 0)
+                            { //
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, true);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
                             }
                             // else if (strcmp(d, "BL") == 0)
@@ -409,7 +422,7 @@ static void firebase_motor_task(void *pvParameters)
                             //     motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_D2, 0, true);
                             // }
                             // else if (strcmp(d, "BR") == 0)
-                            // { // 
+                            // { //
                             //     motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, 0, true);
                             //     motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
                             //     motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_C2, 0, true);
@@ -417,16 +430,16 @@ static void firebase_motor_task(void *pvParameters)
                             // }
                             else if (strcmp(d, "FL") == 0)
                             { // Lùi phải
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, false);
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, true);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, false);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, false);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, true);
                             }
                             else if (strcmp(d, "FR") == 0)
                             { // Lùi trái
-                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_value, false);
-                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_value, true);
-                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_value, true);
+                                motor_control(LEDC_CHANNEL_A1, LEDC_CHANNEL_A2, pwm_A, false);
+                                motor_control(LEDC_CHANNEL_B1, LEDC_CHANNEL_B2, pwm_B, true);
+                                motor_control(LEDC_CHANNEL_C1, LEDC_CHANNEL_C2, pwm_C, true);
                                 motor_control(LEDC_CHANNEL_D1, LEDC_CHANNEL_D2, pwm_D, false);
                             }
                             else
@@ -453,7 +466,6 @@ static void firebase_motor_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(500)); // 0.5s đọc lại Firebase
     }
 }
-
 
 // --- Hàm xử lý ADC lên Firebase ---
 void adc_task(void *pvParameters)
@@ -531,22 +543,23 @@ void adc_task(void *pvParameters)
 
                 ESP_LOGI(TAG, "Raw: %d | Vout_Avg: %d mV | Vin: %d mV (%.2f V)",
                          raw, Vout_avg, Vin_mV, Vin_mV / 1000.0f);
-                if(Vin_mV != adcOld){  
-                adcOld = Vin_mV; 
-                cJSON *root = cJSON_CreateObject();
-                cJSON_AddNumberToObject(root, "Volt", Vin_mV);
-                char *json = cJSON_PrintUnformatted(root);
+                if (Vin_mV != adcOld)
+                {
+                    adcOld = Vin_mV;
+                    cJSON *root = cJSON_CreateObject();
+                    cJSON_AddNumberToObject(root, "Volt", Vin_mV);
+                    char *json = cJSON_PrintUnformatted(root);
 
-                esp_http_client_config_t cfg = {.url = url, .method = HTTP_METHOD_PUT, .crt_bundle_attach = esp_crt_bundle_attach};
-                esp_http_client_handle_t client = esp_http_client_init(&cfg);
-                esp_http_client_set_header(client, "Content-Type", "application/json");
-                esp_http_client_set_post_field(client, json, strlen(json));
-                esp_http_client_perform(client);
-                esp_http_client_cleanup(client);
+                    esp_http_client_config_t cfg = {.url = url, .method = HTTP_METHOD_PUT, .crt_bundle_attach = esp_crt_bundle_attach};
+                    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+                    esp_http_client_set_header(client, "Content-Type", "application/json");
+                    esp_http_client_set_post_field(client, json, strlen(json));
+                    esp_http_client_perform(client);
+                    esp_http_client_cleanup(client);
 
-                cJSON_Delete(root);
-                free(json);
-            }
+                    cJSON_Delete(root);
+                    free(json);
+                }
             }
         }
         else
