@@ -1,0 +1,1 @@
+flash & monitor: idf.py -p COM{yourComId} flash monitor
