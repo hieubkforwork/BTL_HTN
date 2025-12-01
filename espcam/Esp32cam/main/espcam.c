@@ -52,11 +52,13 @@ static const char *TAG = "ESP32CAM";
 #define CAM_PIN_HREF    23
 #define CAM_PIN_PCLK    22
 
-
 /* ===========================================================
  * CAMERA WEB SERVER (JPEG SNAPSHOT)
  * ===========================================================
  */
+
+// CHỈ SỬA: loại bỏ việc đổi framesize mỗi request
+// => Tránh reset camera liên tục gây lag + corrupt jpeg
 static esp_err_t jpg_handler(httpd_req_t *req)
 {
     camera_fb_t *fb = esp_camera_fb_get();
@@ -73,19 +75,19 @@ static esp_err_t jpg_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// GIỮ NGUYÊN tên hàm, chỉ xóa phần đổi framesize
 static esp_err_t jpg_lo(httpd_req_t *req)
 {
-    esp_camera_sensor_get()->set_framesize(esp_camera_sensor_get(), FRAMESIZE_QVGA);
     return jpg_handler(req);
 }
+
 static esp_err_t jpg_mid(httpd_req_t *req)
 {
-    esp_camera_sensor_get()->set_framesize(esp_camera_sensor_get(), FRAMESIZE_VGA);
     return jpg_handler(req);
 }
+
 static esp_err_t jpg_hi(httpd_req_t *req)
 {
-    esp_camera_sensor_get()->set_framesize(esp_camera_sensor_get(), FRAMESIZE_SVGA);
     return jpg_handler(req);
 }
 
@@ -120,9 +122,12 @@ httpd_handle_t start_cam_webserver(void)
 
 
 /* ===========================================================
- * CAMERA INIT
+ * CAMERA INIT — SỬA Ở ĐÂY
  * ===========================================================
  */
+
+// CHỈ SỬA: framesize thiết lập đúng 1 lần DUY NHẤT tại đây
+// => Không reset sensor liên tục nữa
 static void camera_init(void)
 {
     camera_config_t config = {
@@ -140,11 +145,15 @@ static void camera_init(void)
         .pin_sccb_scl = CAM_PIN_SIOC,
         .pin_pwdn  = CAM_PIN_PWDN,
         .pin_reset = CAM_PIN_RESET,
-        .xclk_freq_hz = 10000000,
+        .xclk_freq_hz = 20000000,
         .pixel_format = PIXFORMAT_JPEG,
-        .frame_size = FRAMESIZE_SVGA,
-        .jpeg_quality = 10,
-        .fb_count = 2
+        
+
+        // CHỈ SỬA: 
+        // Chỉ set framesize 1 lần ở đây (VGA hoặc SVGA đều OK)
+        .frame_size = FRAMESIZE_VGA,     // <<======= SỬA QUAN TRỌNG
+        .jpeg_quality = 12,
+        .fb_count = 3
     };
 
     ESP_ERROR_CHECK(esp_camera_init(&config));
@@ -201,7 +210,6 @@ static void send_ip_to_firebase(const char *ip)
 
 static esp_ip4_addr_t g_sta_ip;
 static bool cam_task_started = false;
-
 static void cam_and_firebase_task(void *pv)
 {
     char ip_str[20];

@@ -117,22 +117,37 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
  * =========================== */
 void wifi_init_sta_or_ap(void)
 {
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    // 1. Init esp-netif & event loop (chỉ cần gọi 1 lần trong app)
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    // 2. Tạo default netif cho STA và AP
+    //    (phải gọi TRƯỚC esp_wifi_init)
     esp_netif_create_default_wifi_sta();
     esp_netif_create_default_wifi_ap();
 
-    ESP_ERROR_CHECK(
-        esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
-                                   &wifi_event_handler, NULL));
+    // 3. Init WiFi, tắt NVS cho WiFi (không lưu SSID/PASS)
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    cfg.nvs_enable = false;                                 // không dùng NVS cho WiFi
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    ESP_ERROR_CHECK(
-        esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
-                                   &wifi_event_handler, NULL));
+    // chỉ lưu config WiFi trong RAM
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
+    // 4. Đăng ký event handler
+    ESP_ERROR_CHECK(esp_event_handler_register(
+        WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(
+        IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
+
+    // 5. Mode AP + STA
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+
+    // (Nếu bạn có esp_wifi_set_config(AP/STA) thì đặt ở đây)
+
+    // 6. Start WiFi
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    start_config_ap();  // AP luôn chạy trước
+    // 7. Luôn bật AP config portal mỗi lần boot
+    start_config_ap();
 }
